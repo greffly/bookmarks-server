@@ -19,7 +19,7 @@ app.use(cors());
 app.use(helmet());
 app.use(validateTokenBearer);
 
-app.use(bookmarksRouter);
+app.use('/api/bookmarks', bookmarksRouter);
 
 app.get('/', (req, res) => {
   res.send('This app is gonna be awesomesauce!');

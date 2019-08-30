@@ -3,6 +3,7 @@ const logger = require('../logger');
 const xss = require('xss');
 const { isWebUri } = require('valid-url');
 const bookmarksService = require('./bookmarks-service');
+const { getBookmarkValidationError } = require('./bookmark-validator')
 
 const bookmarksRouter = express.Router();
 const bodyParser = express.json();
@@ -16,7 +17,7 @@ const serializeBookmark = bookmark => ({
 });
 
 bookmarksRouter
-  .route('/bookmarks')
+  .route('/api/bookmarks')
   .get((req, res, next) => {
     bookmarksService
       .getAllBookmarks(req.app.get('db'))
@@ -56,14 +57,14 @@ bookmarksRouter
         logger.info(`Bookmark with id ${bookmark.id} created`);
         res
           .status(201)
-          .location(`/bookmarks/${bookmark.id}`)
+          .location(`/api/bookmarks/${bookmark.id}`)
           .json(serializeBookmark(bookmark));
       })
       .catch(next);
   });
 
 bookmarksRouter
-  .route('/bookmarks/:bookmark_id')
+  .route('/api/bookmarks/:bookmark_id')
   .all((req, res, next) => {
     const { bookmark_id } = req.params;
 
@@ -93,6 +94,34 @@ bookmarksRouter
         res.status(204).end();
       })
       .catch(next);
+  })
+  .patch(bodyParser, (req, res, next) => {
+    const { title, url, description, rating } = req.body;
+    const bookmarkToUpdate = { title, url, description, rating };
+    const numberOfValues = Object.values(bookmarkToUpdate).filter(Boolean)
+      .length;
+    if (numberOfValues === 0) {
+      logger.error(`Invalid update without required fields`);
+      return res.status(400).json({
+        error: {
+          message: `Request body must contain either 'title', 'url', 'description', or 'rating'`
+        }
+      });
+    }
+    const error = getBookmarkValidationError(bookmarkToUpdate);
+
+    if (error) return res.status(400).send(error);
+
+     BookmarksService.updateBookmark(
+      req.app.get('db'),
+      req.params.bookmark_id,
+      bookmarkToUpdate
+    )
+      .then(numRowsAffected => {
+        res.status(204).end()
+      })
+      .catch(next)
+  })
   });
 
 module.exports = bookmarksRouter;
